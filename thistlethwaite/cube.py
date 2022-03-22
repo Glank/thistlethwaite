@@ -1,5 +1,5 @@
-from collection.abc import Hashable
-from enum import IntEnum
+from collections.abc import Hashable
+from enum import IntEnum, auto
 from typing import TypeVar, Generic, NewType
 import numpy as np
 
@@ -31,7 +31,7 @@ def move_vec(move:Move):
     F returns <0, 0, 1>,
     etc,
   """
-  d = int(move)/3
+  d = int(move/3)
   return np.array([
     [0, 1, 0],
     [0, -1, 0],
@@ -44,7 +44,8 @@ def move_vec(move:Move):
 def move_rot(move:Move):
   x,y,z = tuple(move_vec(move))
   type_ = int(move)%3
-  c, s : int, int
+  c = int
+  s = int
   if type_ == 0:
     # 90 deg clockwise
     c = 0
@@ -79,19 +80,19 @@ class Edge(IntEnum):
   
 def move_edges(move:Move) -> list[Edge]:
   """ Returns all edges affected by a given move. """
-  d = int(move)/3
+  d = int(move/3)
   return [
-    [UR, UF, UL, UB], #U
-    [DR, DF, DL, DB], #D
-    [UL, FL, DL, BL], #L
-    [UR, FR, DR, BR], #R
-    [UF, FR, DF, FL], #F
-    [UB, BR, DB, BL], #B
+    [Edge.UR, Edge.UF, Edge.UL, Edge.UB], #U
+    [Edge.DR, Edge.DF, Edge.DL, Edge.DB], #D
+    [Edge.UL, Edge.FL, Edge.DL, Edge.BL], #L
+    [Edge.UR, Edge.FR, Edge.DR, Edge.BR], #R
+    [Edge.UF, Edge.FR, Edge.DF, Edge.FL], #F
+    [Edge.UB, Edge.BR, Edge.DB, Edge.BL], #B
   ][d]
 
 def edge_vec(edge:Edge):
   e = int(edge)
-  y = e/4
+  y = 1-int(e/4)
   if y == 0:
     x, z = [
       (1, 1),
@@ -108,7 +109,7 @@ def edge_vec(edge:Edge):
     ][e%4]
   return np.array([x, y, z])
 
-_VEC_TO_EDGE = dict[tuple[int,int,int],Edge]
+_VEC_TO_EDGE = dict[tuple[int,int,int],Edge]()
 def vec_edge(vec):
   global _VEC_TO_EDGE
   if not _VEC_TO_EDGE:
@@ -119,42 +120,49 @@ def vec_edge(vec):
   vec = tuple([int(i) for i in vec])
   return _VEC_TO_EDGE[vec]
 
-EDGE_PERMUTATIONS = init_edge_permutations()
-def init_edge_permutations() -> list[list[list[int]]]:
+def _init_edge_permutations() -> list[list[list[int]]]:
   """ Permutation of edges for each move in minimal cycle notation """
-  all_edge_permutations = list[list[list[int]]]
+  all_edge_permutations = list[list[list[int]]]()
   for move in Move.__members__.values():
     edges = move_edges(move)
-    edge_vecs = [edge_vec(e) for e in affected_edges]
+    edge_vecs = [edge_vec(e) for e in edges]
     rot = move_rot(move)
     after_vecs = [np.matmul(rot, v) for v in edge_vecs]
     after_edges = [vec_edge(v) for v in after_vecs]
     transitions = dict((edges[i], after_edges[i]) for i in range(len(edges)))
     visited = set()
-    edge_permutations = list[list[int]]
+    edge_permutations = list[list[int]]()
     while len(visited) < len(edges):
-      cycle = list[int]
+      cycle = list[int]()
       # get first unvisited
-      start = [e for e in edges if e not in visted][0]
+      start = [e for e in edges if e not in visited][0]
       visited.add(start)
       cycle.append(start)
       edge = transitions[start]
       visited.add(edge)
       while edge != start:
         cycle.append(edge)
-        edge = transitions[start]
+        edge = transitions[edge]
         visited.add(edge)
       edge_permutations.append(cycle)
-    all_edge_permutations.append(edge_permutation)
+    all_edge_permutations.append(edge_permutations)
+  return all_edge_permutations
+EDGE_PERMUTATIONS = _init_edge_permutations()
 
+TCubeLike = TypeVar("TCubeLike", bound="CubeLike")
 class CubeLike(Hashable):
   def do(self, move:Move) -> None:
     raise NotImplementedError()
-  def copy(self) -> CubeLike
+  def copy(self:TCubeLike) -> TCubeLike:
     raise NotImplementedError()
-  def __hash__(self) -> int
+  def __hash__(self) -> int:
     raise NotImplementedError()
-  def __eq__(self, other) -> bool
+  def __eq__(self, other) -> bool:
+    raise NotImplementedError()
+  def encode(self) -> bytes:
+    raise NotImplementedError()
+  @staticmethod
+  def decode(data:bytes) -> TCubeLike:
     raise NotImplementedError()
 
 class G0ModG1(CubeLike):
@@ -165,7 +173,7 @@ class G0ModG1(CubeLike):
     self.edge_orientations = edge_orientations
   def do(self, move:Move):
     global EDGE_PERMUTATIONS
-    flip = move in [FRONT, FRONT_INV, BACK, BACK_INV]
+    flip = move in [Move.FRONT, Move.FRONT_INV, Move.BACK, Move.BACK_INV]
     permutation = EDGE_PERMUTATIONS[move]
     for cycle in permutation:
       tmp = self.edge_orientations[cycle[-1]]
@@ -173,12 +181,17 @@ class G0ModG1(CubeLike):
         self.edge_orientations[cycle[i]] = \
           self.edge_orientations[cycle[i-1]] != flip
       self.edge_orientations[cycle[0]] = tmp != flip
-  def copy(self):
+  def copy(self:TCubeLike) -> TCubeLike:
     return G0ModG1(self.edge_orientations.copy())
   def __hash__(self) -> int:
     return hash(self.edge_orientations)
   def __eq__(self, other) -> bool:
     return all(self.edge_orientations[i] == other.edge_orientations[i] \
-      for i in range(len(self.edge_orientations))
-
-#TODO: test
+      for i in range(len(self.edge_orientations)))
+  def __str__(self) -> str:
+    return ''.join('1' if o else '0' for o in self.edge_orientations)
+  def encode(self) -> bytes:
+    return bytes(str(self), 'utf-8')
+  @staticmethod
+  def decode(data:bytes) -> TCubeLike:
+    return G0ModG1([o==ord('1') for o in data])
