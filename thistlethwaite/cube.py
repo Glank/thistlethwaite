@@ -2,6 +2,7 @@ from collections.abc import Hashable
 from enum import IntEnum, auto
 from typing import TypeVar, Generic, NewType
 import numpy as np
+import math
 
 class Move(IntEnum):
   UP = 0
@@ -41,28 +42,84 @@ def move_vec(move:Move):
     [0, 0, -1]
   ][d])
 
+def move_angle(move:Move) -> int:
+  type_ = int(move)%3
+  if type_ == 0:
+    return 270
+  elif type_ == 1:
+    return 90
+  else:
+    return 180
+
+_VEC_ANGLE_TO_MOVE = dict[tuple[int,int,int,int], Move]()
+def vec_angle_move(vec, angle:int) -> Move:
+  if not _VEC_ANGLE_TO_MOVE:
+    for move in Move.__members__.values():
+      key = tuple([int(v) for v in move_vec(move)]+[move_angle(move)])
+      _VEC_ANGLE_TO_MOVE[key] = move
+  if angle < 0:
+    angle = 360-((-angle)%360)
+  key = tuple([int(v) for v in list(vec)]+[angle])
+  return _VEC_ANGLE_TO_MOVE[key]
+
 def move_rot(move:Move):
   x,y,z = tuple(move_vec(move))
-  type_ = int(move)%3
-  c = int
-  s = int
-  if type_ == 0:
-    # 90 deg clockwise
-    c = 0
-    s = -1
-  elif type_ == 1:
-    # 90 deg widershins
-    c = 0
-    s = 1
-  elif type_ == 2:
-    # 180 deg
-    c = -1
-    s = 0
+  angle = move_angle(move)
+  c = int(round(math.cos(angle*math.pi/180)))
+  s = int(round(math.sin(angle*math.pi/180)))
   return np.array([
     [c+x*x*(1-c),   x*y*(1-c)-z*s, x*z*(1-c)+y*s],
     [y*x*(1-c)+z*s, c+y*y*(1-c),   y*z*(1-c)-x*s],
     [z*x*(1-c)-y*s, z*y*(1-c)+x*s, c+z*z*(1-c)],
   ])
+
+def _init_symmetry_transforms():
+  symmetry_transforms = list[np.array]()
+  symmetry_ids = []
+  for x_flip in [1, -1]:
+    step1 = np.array([
+      [x_flip, 0, 0],
+      [   0, 1, 0],
+      [   0, 0, 1],
+    ])
+    for y_rot in [0,90,180,270]:
+      c = int(round(math.cos(y_rot*math.pi/180)))
+      s = int(round(math.sin(y_rot*math.pi/180)))
+      step2 = np.matmul(step1, np.array([
+        [ c, 0, s],
+        [ 0, 1, 0],
+        [-s, 0, c],
+      ]))
+      for x_rot, z_rot in [(0, 0), (180, 0), (0, 90), (0, -90), (90, 0), (-90, 0)]:
+        c = int(round(math.cos(x_rot*math.pi/180)))
+        s = int(round(math.sin(x_rot*math.pi/180)))
+        step3 = np.matmul(step2, np.array([
+          [1, 0,  0],
+          [0, c, -s],
+          [0, s,  c],
+        ]))
+        c = int(round(math.cos(z_rot*math.pi/180)))
+        s = int(round(math.sin(z_rot*math.pi/180)))
+        step3 = np.matmul(step3, np.array([
+          [c, -s, 0],
+          [s,  c, 0],
+          [0,  0, 1],
+        ]))
+        symmetry_transforms.append(step3)
+        symmetry_ids.append([x_flip, y_rot, x_rot, z_rot])
+  return symmetry_transforms, symmetry_ids
+SYMMETRY_TRANSFORMS, SYMMETRY_IDS = _init_symmetry_transforms()
+
+def apply_transform_to_moves(moves:list[Move], symmetry:np.array) -> list[Move]:
+  new_moves = []
+  for move in moves:
+    angle = move_angle(move)
+    vec = move_vec(move)
+    new_angle = angle*np.linalg.det(symmetry)
+    new_vec = np.matmul(symmetry, vec)
+    new_move = vec_angle_move(new_vec, new_angle)
+    new_moves.append(new_move)
+  return new_moves
 
 class Edge(IntEnum):
   UR = 0

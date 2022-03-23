@@ -85,7 +85,78 @@ def test_g0modg1_encoding():
   if decoded != expected:
     raise Exception()
 
-# TODO: try to build move table for solving G0ModG1 in memory
+def test_vec_angle_move():
+  for move in cube.Move.__members__.values():
+    vec, angle = cube.move_vec(move), cube.move_angle(move)
+    act = cube.vec_angle_move(vec, angle)
+    if act != move:
+      raise Exception()
+
+def test_symmetry_transforms():
+  if len(cube.SYMMETRY_TRANSFORMS) != 4*2*6:
+    raise Exception()
+  # should be unique
+  for i in range(len(cube.SYMMETRY_TRANSFORMS)):
+    si = cube.SYMMETRY_TRANSFORMS[i]
+    for j in range(i+1, len(cube.SYMMETRY_TRANSFORMS)):
+      sj = cube.SYMMETRY_TRANSFORMS[j]
+      if all(si.flatten() == sj.flatten()):
+        print(cube.SYMMETRY_IDS[i])
+        print(f's{i}:{si}')
+        print(cube.SYMMETRY_IDS[j])
+        print(f's{j}:{sj}')
+        raise Exception()
+  # and should be closed under multiplication
+  for i in range(len(cube.SYMMETRY_TRANSFORMS)):
+    si = cube.SYMMETRY_TRANSFORMS[i]
+    for j in range(i+1, len(cube.SYMMETRY_TRANSFORMS)):
+      sj = cube.SYMMETRY_TRANSFORMS[j]
+      sij = np.matmul(si, sj)
+      found = False
+      for other in cube.SYMMETRY_TRANSFORMS:
+        if all(other.flatten() == sij.flatten()):
+          found = True
+          break
+      if not found:
+        raise Exception(i,j)
+
+def test_apply_transform_to_moves():
+  # print(cube.SYMMETRY_IDS[0])
+  # [1, 0, 0, 0]
+  # No transform
+  actual = cube.apply_transform_to_moves([cube.Move.RIGHT], cube.SYMMETRY_TRANSFORMS[0])
+  expected = [cube.Move.RIGHT]
+  if len(actual) != len(expected):
+    raise Exception()
+  if actual[0] != expected[0]:
+    raise Exception()
+  # print(cube.SYMMETRY_IDS[6])
+  # [1, 90, 0, 0]
+  # Rotate widdersins about the y axis
+  actual = cube.apply_transform_to_moves([cube.Move.RIGHT], cube.SYMMETRY_TRANSFORMS[6])
+  expected = [cube.Move.BACK]
+  if len(actual) != len(expected):
+    raise Exception()
+  if actual[0] != expected[0]:
+    raise Exception()
+  # print(cube.SYMMETRY_IDS[3])
+  # [1, 0, 0, 90]
+  # Rotate clockwise about the z axis
+  actual = cube.apply_transform_to_moves([cube.Move.RIGHT], cube.SYMMETRY_TRANSFORMS[3])
+  expected = [cube.Move.DOWN]
+  if len(actual) != len(expected):
+    raise Exception()
+  if actual[0] != expected[0]:
+    raise Exception()
+  # print(cube.SYMMETRY_IDS[24])
+  # [-1, 0, 0, 0]
+  # Just an x flip
+  actual = cube.apply_transform_to_moves([cube.Move.RIGHT], cube.SYMMETRY_TRANSFORMS[24])
+  expected = [cube.Move.LEFT_INV]
+  if len(actual) != len(expected):
+    raise Exception()
+  if actual[0] != expected[0]:
+    raise Exception()
 
 def main():
   test_move_vec()
@@ -94,3 +165,6 @@ def main():
   test_edge_permutations()
   test_g0modg1()
   test_g0modg1_encoding()
+  test_vec_angle_move()
+  test_symmetry_transforms()
+  test_apply_transform_to_moves()
