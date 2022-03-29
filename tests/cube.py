@@ -1,5 +1,7 @@
 import thistlethwaite.cube as cube
 import numpy as np
+import random
+from textwrap import dedent
 
 def test_move_vec():
   if any(cube.move_vec(cube.Move.UP) != np.array([0,1,0])):
@@ -158,7 +160,90 @@ def test_apply_transform_to_moves():
   if actual[0] != expected[0]:
     raise Exception()
 
-def main():
+def test_iter_symmetries():
+  ident = cube.G0ModG1([False]*12)
+  symmetries = list(ident.iter_symmetries())
+  assert len(symmetries) == 1
+
+  f = ident.copy()
+  f.do(cube.Move.FRONT)
+  symmetries = list(f.iter_symmetries())
+  # for i, s in symmetries:
+  #   print(cube.SYMMETRY_IDS[i], s)
+  assert len(symmetries) == 2
+
+  top_line = cube.G0ModG1([True, False]*2+[False]*8)
+  symmetries = list(top_line.iter_symmetries())
+  assert len(symmetries) == 4
+
+  top_l_right_mid = cube.G0ModG1([
+    True, True, False, False, True, False, False, False, True
+  ]+[False]*4)
+  symmetries = list(top_l_right_mid.iter_symmetries())
+  assert len(symmetries) == 2*4*2
+
+def test_iter_symmetries_invertable():
+  #cb = cube.G0ModG1([
+  #  True, True, False, False, True, False, False, False, True
+  #]+[False]*4)
+  cb = cube.G0ModG1([
+    True, False, True, False,
+    True, True, True, False,
+    True, False, False, False
+  ])
+  for _, sym in cb.iter_symmetries():
+    matched = False
+    for _, sym_sym in sym.iter_symmetries():
+      if sym_sym == cb:
+        matched = True
+        break
+    assert matched
+
+def test_invert():
+  moves = [cube.Move.RIGHT, cube.Move.LEFT, cube.Move.UP_INV, cube.Move.BACK_2]
+  expected = [cube.Move.BACK_2, cube.Move.UP, cube.Move.LEFT_INV, cube.Move.RIGHT_INV]
+  actual = cube.invert(moves)
+  assert len(actual) == len(expected)
+  for act, exp in zip(actual, expected):
+    assert act == exp
+
+def test_edge_orientation_vecs():
+  for flipped in [False, True]:
+    for edge in cube.Edge.__members__.values():
+      vec = cube.edge_vec(edge)
+      orientation_vec = cube.edge_orientation_vec(vec, flipped)
+      unvec = cube.orientation_from_vec(vec, orientation_vec)
+      assert unvec == flipped
+
+def fuzz_transforms():
+  ident = cube.G0ModG1([False]*12)
+  gen = random.Random(12345)
+  all_moves = list(cube.Move.__members__.values())
+  for trial in range(1000):
+    moves = [gen.choice(all_moves) for _ in range(20)]
+    constructed = ident.copy()
+    for move in moves:
+      constructed.do(move)
+    symmetries = list(constructed.iter_symmetries())
+    sym_id, symmetry = gen.choice(symmetries)
+    transform = cube.SYMMETRY_TRANSFORMS[sym_id]
+    transformed_moves = cube.apply_transform_to_moves(moves, transform)
+    constructed_transform = ident.copy()
+    for move in transformed_moves:
+      constructed_transform.do(move)
+    if constructed_transform != symmetry:
+      x_flip, y_rot, x_rot, z_rot = cube.SYMMETRY_IDS[sym_id]
+      print(dedent(f"""
+        Trial {trial} failed.
+        x_flip:{x_flip}, y_rot:{y_rot}, x_rot:{x_rot}, z_rot:{z_rot}
+        moves: {moves}
+        transformed_moves: {transformed_moves}
+        direct symmetry: {symmetry}
+        move constructed symmetry: {constructed_transform}
+      """))
+      raise Exception()
+
+def main(cmdline_params):
   test_move_vec()
   test_move_rot()
   test_edge_vec_edge()
@@ -168,3 +253,8 @@ def main():
   test_vec_angle_move()
   test_symmetry_transforms()
   test_apply_transform_to_moves()
+  test_iter_symmetries()
+  test_iter_symmetries_invertable()
+  test_invert()
+  test_edge_orientation_vecs()
+  fuzz_transforms()

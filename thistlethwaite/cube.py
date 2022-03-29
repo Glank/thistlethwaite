@@ -62,6 +62,23 @@ def vec_angle_move(vec, angle:int) -> Move:
   key = tuple([int(v) for v in list(vec)]+[angle])
   return _VEC_ANGLE_TO_MOVE[key]
 
+def _init_inverse_moves() -> list[Move]:
+  inverse_moves = list[Move]()
+  for move in Move.__members__.values():
+    vec = move_vec(move)
+    angle = -move_angle(move)
+    inverse = vec_angle_move(vec, angle)
+    inverse_moves.append(inverse)
+  return inverse_moves
+INVERSE_MOVES = _init_inverse_moves()
+
+def invert(moves:list[Move]) -> list[Move]:
+  global INVERSE_MOVES
+  inverse = list[Move]()
+  for move in reversed(moves):
+    inverse.append(INVERSE_MOVES[move])
+  return inverse
+
 def move_rot(move:Move):
   x,y,z = tuple(move_vec(move))
   angle = move_angle(move)
@@ -166,6 +183,22 @@ def edge_vec(edge:Edge):
     ][e%4]
   return np.array([x, y, z])
 
+def edge_orientation_vec(edge:np.array, flipped:bool) -> np.array:
+  x,y,z = tuple(edge)
+  if not flipped:
+    if y != 0:
+      return np.array([0,y,0])
+    else:
+      return np.array([0,0,z])
+  else:
+    if y != 0:
+      return np.array([x,0,z])
+    else:
+      return np.array([x,0,0])
+
+def orientation_from_vec(edge:np.array, orientation_vec:np.array) -> bool:
+  return all(edge_orientation_vec(edge, True) == orientation_vec)
+
 _VEC_TO_EDGE = dict[tuple[int,int,int],Edge]()
 def vec_edge(vec):
   global _VEC_TO_EDGE
@@ -177,6 +210,26 @@ def vec_edge(vec):
   vec = tuple([int(i) for i in vec])
   return _VEC_TO_EDGE[vec]
 
+def transitions_to_cycle_notation(transitions) -> list[list[int]]:
+  assert set(transitions.keys()) == set(transitions.values())
+  cycles = []
+  touched = list(transitions.keys())
+  visited = set()
+  while len(visited) < len(touched):
+    cycle = list[int]()
+    # get first unvisited
+    start = next(iter(e for e in touched if e not in visited))
+    visited.add(start)
+    cycle.append(start)
+    cur = transitions[start]
+    while cur != start:
+      visited.add(cur)
+      cycle.append(cur)
+      cur = transitions[cur]
+    if len(cycle) > 1:
+      cycles.append(cycle)
+  return cycles
+
 def _init_edge_permutations() -> list[list[list[int]]]:
   """ Permutation of edges for each move in minimal cycle notation """
   all_edge_permutations = list[list[list[int]]]()
@@ -187,30 +240,32 @@ def _init_edge_permutations() -> list[list[list[int]]]:
     after_vecs = [np.matmul(rot, v) for v in edge_vecs]
     after_edges = [vec_edge(v) for v in after_vecs]
     transitions = dict((edges[i], after_edges[i]) for i in range(len(edges)))
-    visited = set()
-    edge_permutations = list[list[int]]()
-    while len(visited) < len(edges):
-      cycle = list[int]()
-      # get first unvisited
-      start = [e for e in edges if e not in visited][0]
-      visited.add(start)
-      cycle.append(start)
-      edge = transitions[start]
-      visited.add(edge)
-      while edge != start:
-        cycle.append(edge)
-        edge = transitions[edge]
-        visited.add(edge)
-      edge_permutations.append(cycle)
+    edge_permutations = transitions_to_cycle_notation(transitions)
     all_edge_permutations.append(edge_permutations)
   return all_edge_permutations
 EDGE_PERMUTATIONS = _init_edge_permutations()
+
+def _init_edge_symmetries() -> list[list[list[int]]]:
+  """ Permutations of edges for each symetry in SYMMETRY_TRANSFORMS """
+  all_permutations = list[list[list[int]]]()
+  for transform in SYMMETRY_TRANSFORMS:
+    edges = list(Edge.__members__.values())
+    edge_vecs = [edge_vec(e) for e in edges]
+    after_vecs = [np.matmul(transform, ev) for ev in edge_vecs]
+    after_edges = [vec_edge(v) for v in after_vecs]
+    transitions = dict((edges[i], after_edges[i]) for i in range(len(edges)))
+    cycles = transitions_to_cycle_notation(transitions)
+    all_permutations.append(cycles)
+  return all_permutations
+SYMMETRY_EDGE_PERMUTATIONS = _init_edge_symmetries()
 
 TCubeLike = TypeVar("TCubeLike", bound="CubeLike")
 class CubeLike(Hashable):
   def do(self, move:Move) -> None:
     raise NotImplementedError()
   def copy(self:TCubeLike) -> TCubeLike:
+    raise NotImplementedError()
+  def iter_symmetries(self:TCubeLike) -> tuple[int, TCubeLike]:
     raise NotImplementedError()
   def __hash__(self) -> int:
     raise NotImplementedError()
@@ -226,22 +281,43 @@ class G0ModG1(CubeLike):
   """
   Isomorphic to the quotient group <U, D, L, R, F, B>/<U, D, L, R, F2, B2>.
   """
+  __SYMMETRY_KEYS = None
+  @staticmethod
+  def _symmetry_keys():
+    global SYMMETRY_IDS
+    if G0ModG1.__SYMMETRY_KEYS is None:
+      G0ModG1.__SYMMETRY_KEYS = []
+      for i, (x_flip, y_rot, x_rot, z_rot) in enumerate(SYMMETRY_IDS):
+        if (x_rot == 0 or x_rot == 180) and (y_rot == 0 or y_rot == 180):
+          G0ModG1.__SYMMETRY_KEYS.append(i)
+    return G0ModG1.__SYMMETRY_KEYS
   def __init__(self, edge_orientations:list[bool]):
     self.edge_orientations = edge_orientations
-  def do(self, move:Move):
-    global EDGE_PERMUTATIONS
-    flip = move in [Move.FRONT, Move.FRONT_INV, Move.BACK, Move.BACK_INV]
-    permutation = EDGE_PERMUTATIONS[move]
+  def _apply_edge_permutation(self, permutation, flip:bool):
     for cycle in permutation:
       tmp = self.edge_orientations[cycle[-1]]
       for i in range(len(cycle)-1, 0, -1):
         self.edge_orientations[cycle[i]] = \
           self.edge_orientations[cycle[i-1]] != flip
       self.edge_orientations[cycle[0]] = tmp != flip
+  def do(self, move:Move):
+    global EDGE_PERMUTATIONS
+    flip = move in [Move.FRONT, Move.FRONT_INV, Move.BACK, Move.BACK_INV]
+    self._apply_edge_permutation(EDGE_PERMUTATIONS[move], flip) 
   def copy(self:TCubeLike) -> TCubeLike:
     return G0ModG1(self.edge_orientations.copy())
+  def iter_symmetries(self:TCubeLike) -> tuple[int, TCubeLike]:
+    global SYMMETRY_EDGE_PERMUTATIONS
+    visited = set()
+    for i in G0ModG1._symmetry_keys():
+      permutation = SYMMETRY_EDGE_PERMUTATIONS[i]
+      copy = self.copy()
+      copy._apply_edge_permutation(permutation, False)
+      if copy not in visited:
+        visited.add(copy)
+        yield i, copy
   def __hash__(self) -> int:
-    return hash(self.edge_orientations)
+    return hash(tuple(self.edge_orientations))
   def __eq__(self, other) -> bool:
     return all(self.edge_orientations[i] == other.edge_orientations[i] \
       for i in range(len(self.edge_orientations)))
@@ -252,3 +328,37 @@ class G0ModG1(CubeLike):
   @staticmethod
   def decode(data:bytes) -> TCubeLike:
     return G0ModG1([o==ord('1') for o in data])
+
+class G1ModG2(CubeLike):
+  """
+  Isomorphic to the quotient group <U, D, L, R, F2, B2>/<U, D, L2, R2, F2, B2>.
+  """
+  def __init__(self, corner_orientations:list[int], edge_types:list[bool]):
+    self.corner_orientations = corner_orientations
+    self.edge_types = edge_types
+  def do(self, move:Move) -> None:
+    # TODO
+    raise NotImplementedError()
+  def copy(self:TCubeLike) -> TCubeLike:
+    return G1ModG2(self.corner_orientations.copy(), self.edge_types.copy())
+  def iter_symmetries(self:TCubeLike) -> tuple[int, TCubeLike]:
+    # TODO
+    raise NotImplementedError()
+  def __hash__(self) -> int:
+    return hash(tuple(self.corner_orientations)) ^ hash(tuple(self.edge_types))
+  def __eq__(self, other) -> bool:
+    return all(self.corner_orientations[i] == other.corner_orientations[i] \
+      for i in range(len(self.corner_orientations))) and \
+      all(self.edge_types[i] == other.edge_types[i] \
+      for i in range(len(self.edge_types)))
+  def __str__(self) -> str:
+    return ''.join(str(c) for c in self.corner_orientations) \
+      + ',' + ''.join('1' if o else '0' for o in self.edge_types)
+  def encode(self) -> bytes:
+    return bytes(str(self), 'utf-8')
+  @staticmethod
+  def decode(data:bytes) -> TCubeLike:
+    return G1ModG2(
+      [ord(c)-ord('0') for c in data[:8]],
+      [o==ord('1') for o in data[9:]]
+    )

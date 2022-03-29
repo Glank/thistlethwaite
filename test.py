@@ -14,7 +14,7 @@ def run_all_tests(pkg, prefix=""):
       run_all_tests(module, prefix=full_test_name)
     else:
       print(f"Testing {full_test_name}...")
-      module.main()
+      module.main(None)
 
 def main():
   run_all_tests(tests)
