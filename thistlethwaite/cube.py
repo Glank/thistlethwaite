@@ -4,6 +4,17 @@ from typing import TypeVar, Generic, NewType
 import numpy as np
 import math
 
+def rot_about_vec(vec:np.array, rads:float):
+  """ Returns a rotation vector about the given vector by the given angle in radians. """
+  x,y,z = tuple(vec)
+  c = math.cos(rads)
+  s = math.sin(rads)
+  return np.array([
+    [c+x*x*(1-c),   x*y*(1-c)-z*s, x*z*(1-c)+y*s],
+    [y*x*(1-c)+z*s, c+y*y*(1-c),   y*z*(1-c)-x*s],
+    [z*x*(1-c)-y*s, z*y*(1-c)+x*s, c+z*z*(1-c)],
+  ])
+
 #### Moves [Start] ####
 
 class Move(IntEnum):
@@ -82,15 +93,14 @@ def invert(moves:list[Move]) -> list[Move]:
   return inverse
 
 def move_rot(move:Move):
-  x,y,z = tuple(move_vec(move))
+  vec = move_vec(move)
   angle = move_angle(move)
-  c = int(round(math.cos(angle*math.pi/180)))
-  s = int(round(math.sin(angle*math.pi/180)))
-  return np.array([
-    [c+x*x*(1-c),   x*y*(1-c)-z*s, x*z*(1-c)+y*s],
-    [y*x*(1-c)+z*s, c+y*y*(1-c),   y*z*(1-c)-x*s],
-    [z*x*(1-c)-y*s, z*y*(1-c)+x*s, c+z*z*(1-c)],
-  ])
+  rads = angle*math.pi/180
+  rot = rot_about_vec(vec, rads)
+  for r in range(3):
+    for c in range(3):
+      rot[r,c] = int(round(rot[r,c]))
+  return rot
 
 #### Moves [End] ####
 
@@ -303,51 +313,87 @@ SYMMETRY_EDGE_PERMUTATIONS = _init_edge_symmetries()
 #### Corner [Start] ####
 
 class Corner(IntEnum):
-  pass
-  # TODO
+  UFR = 0
+  ULF = auto()
+  UBL = auto()
+  URB = auto()
+  DRF = auto()
+  DFL = auto()
+  DLB = auto()
+  DBR = auto()
   
 def move_corners(move:Move) -> list[Corner]:
   """ Returns all cornersaffected by a given move. """
-  raise NotImplementedError("TODO")
   d = int(move/3)
   return [
-    [Edge.UR, Edge.UF, Edge.UL, Edge.UB], #U
-    [Edge.DR, Edge.DF, Edge.DL, Edge.DB], #D
-    [Edge.UL, Edge.FL, Edge.DL, Edge.BL], #L
-    [Edge.UR, Edge.FR, Edge.DR, Edge.BR], #R
-    [Edge.UF, Edge.FR, Edge.DF, Edge.FL], #F
-    [Edge.UB, Edge.BR, Edge.DB, Edge.BL], #B
+    [Corner.UFR, Corner.ULF, Corner.UBL, Corner.URB], #U
+    [Corner.DRF, Corner.DFL, Corner.DLB, Corner.DBR], #D
+    [Corner.UFR, Corner.URB, Corner.DRF, Corner.DBR], #R
+    [Corner.ULF, Corner.UBL, Corner.DFL, Corner.DLB], #L
+    [Corner.UFR, Corner.ULF, Corner.DRF, Corner.DFL], #F
+    [Corner.UBL, Corner.URB, Corner.DLB, Corner.DBR], #B
   ][d]
 
 def corner_vec(corner:Corner):
-  raise NotImplementedError("TODO")
-
-def corner_orientation_vec(corner:np.array, orientation:int) -> np.array:
-  raise NotImplementedError("TODO")
-
-def corner_orientation_from_vec(corner:np.array, orientation_vec:np.array) -> int:
-  raise NotImplementedError("TODO")
+  y = 1 if int(corner/4) == 0 else -1
+  x, z = [
+    (1, 1),
+    (-1, 1),
+    (-1, -1),
+    (1, -1),
+  ][corner%4]
+  return np.array([x, y, z])
 
 _VEC_TO_CORNER = dict[tuple[int,int,int],Corner]()
-def vec_corner(vec):
+def vec_corner(vec) -> Corner:
   global _VEC_TO_CORNER
-  raise NotImplementedError("TODO")
+  if not _VEC_TO_CORNER:
+    for corner in Corner.__members__.values():
+      key = tuple([int(d) for d in corner_vec(corner)])
+      _VEC_TO_CORNER[key] = corner
+  key = tuple([int(d) for d in vec])
+  return _VEC_TO_CORNER[key]
+
+def corner_orientation_vec(corner:np.array, orientation:int) -> np.array:
+  rads = orientation/3.*math.pi*2
+  norm = corner/np.linalg.norm(corner)
+  rot = rot_about_vec(norm, rads)
+  vec = np.array([0, corner[1], 0])
+  vec = np.matmul(rot, vec)
+  for i in range(3):
+    vec[i] = int(round(vec[i]))
+  return vec
+
+def corner_orientation_from_vec(corner:np.array, orientation_vec:np.array) -> int:
+  for i in range(3):
+    if all(orientation_vec == corner_orientation_vec(corner, i)):
+      return i
+  raise RuntimeError("Invalid orientation vector.")
 
 def _init_corner_permutations_and_deltas() -> tuple[ list[list[list[int]]], list[list[int]] ]:
   """ Permutation and orientation deltas of corners for each move in minimal cycle notation """
-  raise NotImplementedError("TODO")
-  all_edge_permutations = list[list[list[int]]]()
+  all_corner_permutations = list[list[list[int]]]()
+  all_corner_orientation_deltas = list[list[int]]()
   for move in Move.__members__.values():
-    edges = move_edges(move)
-    edge_vecs = [edge_vec(e) for e in edges]
+    corners = move_corners(move)
+    corner_vecs = [corner_vec(c) for c in corners]
     rot = move_rot(move)
-    after_vecs = [np.matmul(rot, v) for v in edge_vecs]
-    after_edges = [vec_edge(v) for v in after_vecs]
-    transitions = dict((edges[i], after_edges[i]) for i in range(len(edges)))
-    edge_permutations = transitions_to_cycle_notation(transitions)
-    all_edge_permutations.append(edge_permutations)
-  return all_edge_permutations
-#CORNER_PERMUTATIONS, CORNER_ORIENTATION_DELTAS = _init_corner_permutations_and_deltas()
+    after_vecs = [np.matmul(rot, v) for v in corner_vecs]
+    after_corners = [vec_corner(v) for v in after_vecs]
+    transitions = dict((corners[i], after_corners[i]) for i in range(len(corners)))
+    corner_permutations = transitions_to_cycle_notation(transitions)
+    all_corner_permutations.append(corner_permutations)
+    # orientation deltas
+    deltas = [0]*8
+    before_orientation_vecs = [corner_orientation_vec(v, 0) for v in corner_vecs]
+    after_orientation_vecs = [np.matmul(rot, v) for v in before_orientation_vecs]
+    after_orientations = [corner_orientation_from_vec(c, o) for c, o in \
+      zip(after_vecs, after_orientation_vecs)]
+    for c, o in zip(corners, after_orientations):
+      deltas[c] = o
+    all_corner_orientation_deltas.append(deltas)
+  return all_corner_permutations, all_corner_orientation_deltas
+CORNER_PERMUTATIONS, CORNER_ORIENTATION_DELTAS = _init_corner_permutations_and_deltas()
 
 def _init_corner_symmetries() -> list[list[list[int]]]:
   """ Permutations of corners for each symetry in SYMMETRY_TRANSFORMS """

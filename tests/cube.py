@@ -139,6 +139,33 @@ def test_edge_orientation_vecs():
       unvec = cube.edge_orientation_from_vec(vec, orientation_vec)
       assert unvec == flipped
 
+def test_corner_vec():
+  for corner in cube.Corner.__members__.values():
+    vec = cube.corner_vec(corner)
+    corner2 = cube.vec_corner(vec)
+    assert corner2 == corner
+
+def test_corner_orientation_vec():
+  for corner in cube.Corner.__members__.values():
+    corner_vec = cube.corner_vec(corner)
+    for orientation in range(3):
+      orientation_vec = cube.corner_orientation_vec(corner_vec, orientation)
+      #print(f"{corner} {corner_vec} {orientation} {orientation_vec}")
+      orientation2 = cube.corner_orientation_from_vec(corner_vec, orientation_vec)
+      assert orientation2 == orientation
+
+def test_corner_permutations_and_deltas():
+  expected = [[cube.Corner.UFR, cube.Corner.DRF, cube.Corner.DFL, cube.Corner.ULF]]
+  actual = cube.CORNER_PERMUTATIONS[cube.Move.FRONT]
+  for exp_cycle, act_cycle in zip(expected, actual):
+    for exp, act in zip(exp_cycle, act_cycle):
+      assert exp == act
+
+  expected = [1, 2, 0, 0, 2, 1, 0, 0]
+  actual = cube.CORNER_ORIENTATION_DELTAS[cube.Move.FRONT]
+  for exp, act in zip(expected, actual):
+    assert exp == act
+
 class CubeLikeTest:
   def __init__(self, clazz, valid_moves:list[cube.Move]):
     self.clazz = clazz
@@ -231,5 +258,8 @@ def main(cmdline_params):
   test_symmetry_transforms()
   test_apply_transform_to_moves()
   test_invert()
+  test_corner_vec()
+  test_corner_orientation_vec()
+  test_corner_permutations_and_deltas()
   G0ModG1Test().run_all()
   #G1ModG2Test().run_all()
