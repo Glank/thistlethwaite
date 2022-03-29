@@ -4,6 +4,8 @@ from typing import TypeVar, Generic, NewType
 import numpy as np
 import math
 
+#### Moves [Start] ####
+
 class Move(IntEnum):
   UP = 0
   UP_INV = auto()
@@ -90,6 +92,11 @@ def move_rot(move:Move):
     [z*x*(1-c)-y*s, z*y*(1-c)+x*s, c+z*z*(1-c)],
   ])
 
+#### Moves [End] ####
+
+
+#### Symmetries [Start] ####
+
 def _init_symmetry_transforms():
   symmetry_transforms = list[np.array]()
   symmetry_ids = []
@@ -137,6 +144,57 @@ def apply_transform_to_moves(moves:list[Move], symmetry:np.array) -> list[Move]:
     new_move = vec_angle_move(new_vec, new_angle)
     new_moves.append(new_move)
   return new_moves
+
+#### Symmetries [End] ####
+
+
+#### Permutations [Start] ####
+
+def transitions_to_cycle_notation(transitions:dict[int,int]) -> list[list[int]]:
+  """ Converts a permutation in transition notation into cycle notation. """
+  assert set(transitions.keys()) == set(transitions.values())
+  cycles = []
+  touched = list(transitions.keys())
+  visited = set()
+  while len(visited) < len(touched):
+    cycle = list[int]()
+    # get first unvisited
+    start = next(iter(e for e in touched if e not in visited))
+    visited.add(start)
+    cycle.append(start)
+    cur = transitions[start]
+    while cur != start:
+      visited.add(cur)
+      cycle.append(cur)
+      cur = transitions[cur]
+    if len(cycle) > 1:
+      cycles.append(cycle)
+  return cycles
+
+def apply_permutation(permutation, lst, op=None):
+  """
+  Applies a permutation in cycle notation.
+  op, if given, should be a function taking two parameters,
+    the value being permuted and it's initial position,
+    and returns the new value after the permutation
+  """
+  if op is None:
+    for cycle in permutation:
+      tmp = lst[cycle[-1]]
+      for i in range(len(cycle)-1, 0, -1):
+        lst[cycle[i]] = lst[cycle[i-1]]
+      lst[cycle[0]] = tmp
+  else:
+    for cycle in permutation:
+      tmp = lst[cycle[-1]]
+      for i in range(len(cycle)-1, 0, -1):
+        lst[cycle[i]] = op(lst[cycle[i-1]], cycle[i-1])
+      lst[cycle[0]] = op(tmp, cycle[-1])
+
+#### Permutations [End] ####
+
+
+#### Edge [Start] ####
 
 class Edge(IntEnum):
   UR = 0
@@ -196,7 +254,7 @@ def edge_orientation_vec(edge:np.array, flipped:bool) -> np.array:
     else:
       return np.array([x,0,0])
 
-def orientation_from_vec(edge:np.array, orientation_vec:np.array) -> bool:
+def edge_orientation_from_vec(edge:np.array, orientation_vec:np.array) -> bool:
   return all(edge_orientation_vec(edge, True) == orientation_vec)
 
 _VEC_TO_EDGE = dict[tuple[int,int,int],Edge]()
@@ -209,26 +267,6 @@ def vec_edge(vec):
       _VEC_TO_EDGE[v] = edge
   vec = tuple([int(i) for i in vec])
   return _VEC_TO_EDGE[vec]
-
-def transitions_to_cycle_notation(transitions) -> list[list[int]]:
-  assert set(transitions.keys()) == set(transitions.values())
-  cycles = []
-  touched = list(transitions.keys())
-  visited = set()
-  while len(visited) < len(touched):
-    cycle = list[int]()
-    # get first unvisited
-    start = next(iter(e for e in touched if e not in visited))
-    visited.add(start)
-    cycle.append(start)
-    cur = transitions[start]
-    while cur != start:
-      visited.add(cur)
-      cycle.append(cur)
-      cur = transitions[cur]
-    if len(cycle) > 1:
-      cycles.append(cycle)
-  return cycles
 
 def _init_edge_permutations() -> list[list[list[int]]]:
   """ Permutation of edges for each move in minimal cycle notation """
@@ -259,6 +297,78 @@ def _init_edge_symmetries() -> list[list[list[int]]]:
   return all_permutations
 SYMMETRY_EDGE_PERMUTATIONS = _init_edge_symmetries()
 
+#### Edge [End] ####
+
+
+#### Corner [Start] ####
+
+class Corner(IntEnum):
+  pass
+  # TODO
+  
+def move_corners(move:Move) -> list[Corner]:
+  """ Returns all cornersaffected by a given move. """
+  raise NotImplementedError("TODO")
+  d = int(move/3)
+  return [
+    [Edge.UR, Edge.UF, Edge.UL, Edge.UB], #U
+    [Edge.DR, Edge.DF, Edge.DL, Edge.DB], #D
+    [Edge.UL, Edge.FL, Edge.DL, Edge.BL], #L
+    [Edge.UR, Edge.FR, Edge.DR, Edge.BR], #R
+    [Edge.UF, Edge.FR, Edge.DF, Edge.FL], #F
+    [Edge.UB, Edge.BR, Edge.DB, Edge.BL], #B
+  ][d]
+
+def corner_vec(corner:Corner):
+  raise NotImplementedError("TODO")
+
+def corner_orientation_vec(corner:np.array, orientation:int) -> np.array:
+  raise NotImplementedError("TODO")
+
+def corner_orientation_from_vec(corner:np.array, orientation_vec:np.array) -> int:
+  raise NotImplementedError("TODO")
+
+_VEC_TO_CORNER = dict[tuple[int,int,int],Corner]()
+def vec_corner(vec):
+  global _VEC_TO_CORNER
+  raise NotImplementedError("TODO")
+
+def _init_corner_permutations_and_deltas() -> tuple[ list[list[list[int]]], list[list[int]] ]:
+  """ Permutation and orientation deltas of corners for each move in minimal cycle notation """
+  raise NotImplementedError("TODO")
+  all_edge_permutations = list[list[list[int]]]()
+  for move in Move.__members__.values():
+    edges = move_edges(move)
+    edge_vecs = [edge_vec(e) for e in edges]
+    rot = move_rot(move)
+    after_vecs = [np.matmul(rot, v) for v in edge_vecs]
+    after_edges = [vec_edge(v) for v in after_vecs]
+    transitions = dict((edges[i], after_edges[i]) for i in range(len(edges)))
+    edge_permutations = transitions_to_cycle_notation(transitions)
+    all_edge_permutations.append(edge_permutations)
+  return all_edge_permutations
+#CORNER_PERMUTATIONS, CORNER_ORIENTATION_DELTAS = _init_corner_permutations_and_deltas()
+
+def _init_corner_symmetries() -> list[list[list[int]]]:
+  """ Permutations of corners for each symetry in SYMMETRY_TRANSFORMS """
+  raise NotImplementedError("TODO")
+  all_permutations = list[list[list[int]]]()
+  for transform in SYMMETRY_TRANSFORMS:
+    edges = list(Edge.__members__.values())
+    edge_vecs = [edge_vec(e) for e in edges]
+    after_vecs = [np.matmul(transform, ev) for ev in edge_vecs]
+    after_edges = [vec_edge(v) for v in after_vecs]
+    transitions = dict((edges[i], after_edges[i]) for i in range(len(edges)))
+    cycles = transitions_to_cycle_notation(transitions)
+    all_permutations.append(cycles)
+  return all_permutations
+#SYMMETRY_CORNER_PERMUTATIONS = _init_corner_symmetries()
+
+#### Corner [End] ####
+
+
+#### Cubes [Start] ####
+
 TCubeLike = TypeVar("TCubeLike", bound="CubeLike")
 class CubeLike(Hashable):
   def do(self, move:Move) -> None:
@@ -275,6 +385,9 @@ class CubeLike(Hashable):
     raise NotImplementedError()
   @staticmethod
   def decode(data:bytes) -> TCubeLike:
+    raise NotImplementedError()
+  @staticmethod
+  def ident() -> TCubeLike:
     raise NotImplementedError()
 
 class G0ModG1(CubeLike):
@@ -294,12 +407,7 @@ class G0ModG1(CubeLike):
   def __init__(self, edge_orientations:list[bool]):
     self.edge_orientations = edge_orientations
   def _apply_edge_permutation(self, permutation, flip:bool):
-    for cycle in permutation:
-      tmp = self.edge_orientations[cycle[-1]]
-      for i in range(len(cycle)-1, 0, -1):
-        self.edge_orientations[cycle[i]] = \
-          self.edge_orientations[cycle[i-1]] != flip
-      self.edge_orientations[cycle[0]] = tmp != flip
+    apply_permutation(permutation, self.edge_orientations, op=lambda o,_:o!=flip)
   def do(self, move:Move):
     global EDGE_PERMUTATIONS
     flip = move in [Move.FRONT, Move.FRONT_INV, Move.BACK, Move.BACK_INV]
@@ -328,6 +436,9 @@ class G0ModG1(CubeLike):
   @staticmethod
   def decode(data:bytes) -> TCubeLike:
     return G0ModG1([o==ord('1') for o in data])
+  @staticmethod
+  def ident() -> TCubeLike:
+    return G0ModG1([False]*12)
 
 class G1ModG2(CubeLike):
   """
@@ -362,3 +473,11 @@ class G1ModG2(CubeLike):
       [ord(c)-ord('0') for c in data[:8]],
       [o==ord('1') for o in data[9:]]
     )
+  @staticmethod
+  def ident() -> TCubeLike:
+    return G1ModG2(
+      [0]*8,
+      [False]*4+[True]*4+[False]*4
+    )
+
+#### Cubes [End] ####

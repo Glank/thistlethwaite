@@ -50,43 +50,6 @@ def test_edge_permutations():
     if actual_cycles != expected_cycles:
       raise Exception(move)
 
-def test_g0modg1():
-  ident = cube.G0ModG1([False]*12)
-  r = ident.copy()
-  r.do(cube.Move.RIGHT)
-  f = ident.copy()
-  f.do(cube.Move.FRONT)
-  if r != ident:
-    raise Exception()
-  if f == ident:
-    raise Exception()
-
-  actual = ident.copy()
-  moves = [
-    cube.Move.FRONT,
-    cube.Move.RIGHT,
-    cube.Move.LEFT_INV,
-    cube.Move.BACK,
-    cube.Move.UP,
-    cube.Move.DOWN_INV,
-  ]
-  for move in moves:
-    actual.do(move)
-  expected = cube.G0ModG1([
-    bool(o) for o in [1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 1, 0]
-  ])
-  if actual != expected:
-    raise Exception()
-
-def test_g0modg1_encoding():
-  expected = cube.G0ModG1([
-    bool(o) for o in [0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0]
-  ])
-  encoded = expected.encode()
-  decoded = cube.G0ModG1.decode(encoded)
-  if decoded != expected:
-    raise Exception()
-
 def test_vec_angle_move():
   for move in cube.Move.__members__.values():
     vec, angle = cube.move_vec(move), cube.move_angle(move)
@@ -160,45 +123,6 @@ def test_apply_transform_to_moves():
   if actual[0] != expected[0]:
     raise Exception()
 
-def test_iter_symmetries():
-  ident = cube.G0ModG1([False]*12)
-  symmetries = list(ident.iter_symmetries())
-  assert len(symmetries) == 1
-
-  f = ident.copy()
-  f.do(cube.Move.FRONT)
-  symmetries = list(f.iter_symmetries())
-  # for i, s in symmetries:
-  #   print(cube.SYMMETRY_IDS[i], s)
-  assert len(symmetries) == 2
-
-  top_line = cube.G0ModG1([True, False]*2+[False]*8)
-  symmetries = list(top_line.iter_symmetries())
-  assert len(symmetries) == 4
-
-  top_l_right_mid = cube.G0ModG1([
-    True, True, False, False, True, False, False, False, True
-  ]+[False]*4)
-  symmetries = list(top_l_right_mid.iter_symmetries())
-  assert len(symmetries) == 2*4*2
-
-def test_iter_symmetries_invertable():
-  #cb = cube.G0ModG1([
-  #  True, True, False, False, True, False, False, False, True
-  #]+[False]*4)
-  cb = cube.G0ModG1([
-    True, False, True, False,
-    True, True, True, False,
-    True, False, False, False
-  ])
-  for _, sym in cb.iter_symmetries():
-    matched = False
-    for _, sym_sym in sym.iter_symmetries():
-      if sym_sym == cb:
-        matched = True
-        break
-    assert matched
-
 def test_invert():
   moves = [cube.Move.RIGHT, cube.Move.LEFT, cube.Move.UP_INV, cube.Move.BACK_2]
   expected = [cube.Move.BACK_2, cube.Move.UP, cube.Move.LEFT_INV, cube.Move.RIGHT_INV]
@@ -212,49 +136,100 @@ def test_edge_orientation_vecs():
     for edge in cube.Edge.__members__.values():
       vec = cube.edge_vec(edge)
       orientation_vec = cube.edge_orientation_vec(vec, flipped)
-      unvec = cube.orientation_from_vec(vec, orientation_vec)
+      unvec = cube.edge_orientation_from_vec(vec, orientation_vec)
       assert unvec == flipped
 
-def fuzz_transforms():
-  ident = cube.G0ModG1([False]*12)
-  gen = random.Random(12345)
-  all_moves = list(cube.Move.__members__.values())
-  for trial in range(1000):
-    moves = [gen.choice(all_moves) for _ in range(20)]
-    constructed = ident.copy()
-    for move in moves:
-      constructed.do(move)
-    symmetries = list(constructed.iter_symmetries())
-    sym_id, symmetry = gen.choice(symmetries)
-    transform = cube.SYMMETRY_TRANSFORMS[sym_id]
-    transformed_moves = cube.apply_transform_to_moves(moves, transform)
-    constructed_transform = ident.copy()
-    for move in transformed_moves:
-      constructed_transform.do(move)
-    if constructed_transform != symmetry:
-      x_flip, y_rot, x_rot, z_rot = cube.SYMMETRY_IDS[sym_id]
-      print(dedent(f"""
-        Trial {trial} failed.
-        x_flip:{x_flip}, y_rot:{y_rot}, x_rot:{x_rot}, z_rot:{z_rot}
-        moves: {moves}
-        transformed_moves: {transformed_moves}
-        direct symmetry: {symmetry}
-        move constructed symmetry: {constructed_transform}
-      """))
-      raise Exception()
+class CubeLikeTest:
+  def __init__(self, clazz, valid_moves:list[cube.Move]):
+    self.clazz = clazz
+    self.valid_moves = valid_moves
+    self.gen = random.Random(hash(str(self.clazz)))
+    self.fuzz_trials = 1000
+  def rand_cube(self) -> cube.TCubeLike:
+    rand = self.clazz.ident()
+    for i in range(30):
+      rand.do(self.gen.choice(self.valid_moves))
+    return rand
+  def fuzz_encoding(self):
+    for trial in range(self.fuzz_trials):
+      cb = self.rand_cube()
+      encoded = cb.encode()
+      decoded = self.clazz.decode(encoded)
+      assert cb == decoded
+  def fuzz_moves(self):
+    ident = self.clazz.ident()
+    for trial in range(self.fuzz_trials):
+      moves = [self.gen.choice(self.valid_moves) for _ in range(30)]
+      cb = ident.copy()
+      for move in moves:
+        cb.do(move)
+      inverse_moves = cube.invert(moves)
+      for move in inverse_moves:
+        cb.do(move)
+      assert cb == ident
+  def fuzz_transforms(self):
+    ident = self.clazz.ident()
+    for trial in range(self.fuzz_trials):
+      moves = [self.gen.choice(self.valid_moves) for _ in range(30)]
+      constructed = ident.copy()
+      for move in moves:
+        constructed.do(move)
+      symmetries = list(constructed.iter_symmetries())
+      sym_id, symmetry = self.gen.choice(symmetries)
+      transform = cube.SYMMETRY_TRANSFORMS[sym_id]
+      transformed_moves = cube.apply_transform_to_moves(moves, transform)
+      constructed_transform = ident.copy()
+      for move in transformed_moves:
+        constructed_transform.do(move)
+      if constructed_transform != symmetry:
+        x_flip, y_rot, x_rot, z_rot = cube.SYMMETRY_IDS[sym_id]
+        print(dedent(f"""
+          Fuzz transforms {trial} failed.
+          x_flip:{x_flip}, y_rot:{y_rot}, x_rot:{x_rot}, z_rot:{z_rot}
+          moves: {moves}
+          transformed_moves: {transformed_moves}
+          direct symmetry: {symmetry}
+          move constructed symmetry: {constructed_transform}
+        """))
+        raise Exception()
+  def fuzz_symmetries_group(self):
+    # test that symmetries are invertable
+    for trial in range(self.fuzz_trials):
+      cb = self.rand_cube()
+      _, sym = self.gen.choice(list(cb.iter_symmetries()))
+      matched = False
+      for _, sym_sym in sym.iter_symmetries():
+        if sym_sym == cb:
+          matched = True
+          break
+      assert matched
+  def run_all(self):
+    self.fuzz_moves()
+    self.fuzz_encoding()
+    self.fuzz_transforms()
+    self.fuzz_symmetries_group()
+
+class G0ModG1Test(CubeLikeTest):
+  def __init__(self):
+    super().__init__(
+      cube.G0ModG1,
+      list(cube.Move.__members__.values())
+    )
+class G1ModG2Test(CubeLikeTest):
+  def __init__(self):
+    super().__init__(
+      cube.G1ModG2,
+      list(cube.Move.__members__.values())
+    )
 
 def main(cmdline_params):
   test_move_vec()
   test_move_rot()
   test_edge_vec_edge()
   test_edge_permutations()
-  test_g0modg1()
-  test_g0modg1_encoding()
   test_vec_angle_move()
   test_symmetry_transforms()
   test_apply_transform_to_moves()
-  test_iter_symmetries()
-  test_iter_symmetries_invertable()
   test_invert()
-  test_edge_orientation_vecs()
-  fuzz_transforms()
+  G0ModG1Test().run_all()
+  #G1ModG2Test().run_all()
