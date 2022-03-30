@@ -1,9 +1,9 @@
 import thistlethwaite.cube as cube
 import thistlethwaite.group_builder as gb
 
-def test_build():
+def test_build_g0modg1():
   ident = cube.G0ModG1([False]*12)
-  builder = gb.GroupBuilder(ident, list(cube.Move.__members__.values()))
+  builder = gb.GroupBuilder(ident)
   builder.build()
   
   cb = ident.copy()
@@ -47,6 +47,13 @@ def test_build():
     #print(f'{move_s} {undone}')
   assert undone == ident
 
+def test_build_g1modg2():
+  builder = gb.GroupBuilder(cube.G1ModG2.ident())
+  print("Starting build...")
+  builder.build()
+  print(len(builder))
+
 def main(cmdline_params):
-  test_build()
+  test_build_g0modg1()
+  #test_build_g1modg2()
   pass

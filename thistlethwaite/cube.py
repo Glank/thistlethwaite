@@ -397,18 +397,17 @@ CORNER_PERMUTATIONS, CORNER_ORIENTATION_DELTAS = _init_corner_permutations_and_d
 
 def _init_corner_symmetries() -> list[list[list[int]]]:
   """ Permutations of corners for each symetry in SYMMETRY_TRANSFORMS """
-  raise NotImplementedError("TODO")
   all_permutations = list[list[list[int]]]()
   for transform in SYMMETRY_TRANSFORMS:
-    edges = list(Edge.__members__.values())
-    edge_vecs = [edge_vec(e) for e in edges]
-    after_vecs = [np.matmul(transform, ev) for ev in edge_vecs]
-    after_edges = [vec_edge(v) for v in after_vecs]
-    transitions = dict((edges[i], after_edges[i]) for i in range(len(edges)))
+    corners = list(Corner.__members__.values())
+    corner_vecs = [corner_vec(c) for c in corners]
+    after_vecs = [np.matmul(transform, cv) for cv in corner_vecs]
+    after_corners = [vec_corner(v) for v in after_vecs]
+    transitions = dict((corners[i], after_corners[i]) for i in range(len(corners)))
     cycles = transitions_to_cycle_notation(transitions)
     all_permutations.append(cycles)
   return all_permutations
-#SYMMETRY_CORNER_PERMUTATIONS = _init_corner_symmetries()
+SYMMETRY_CORNER_PERMUTATIONS = _init_corner_symmetries()
 
 #### Corner [End] ####
 
@@ -434,6 +433,9 @@ class CubeLike(Hashable):
     raise NotImplementedError()
   @staticmethod
   def ident() -> TCubeLike:
+    raise NotImplementedError()
+  @staticmethod
+  def valid_moves() -> list[Move]:
     raise NotImplementedError()
 
 class G0ModG1(CubeLike):
@@ -485,22 +487,56 @@ class G0ModG1(CubeLike):
   @staticmethod
   def ident() -> TCubeLike:
     return G0ModG1([False]*12)
+  @staticmethod
+  def valid_moves() -> list[Move]:
+    return list(Move.__members__.values())
 
 class G1ModG2(CubeLike):
   """
   Isomorphic to the quotient group <U, D, L, R, F2, B2>/<U, D, L2, R2, F2, B2>.
   """
+  __SYMMETRY_KEYS = None
+  @staticmethod
+  def _symmetry_keys():
+    global SYMMETRY_IDS
+    if G1ModG2.__SYMMETRY_KEYS is None:
+      G1ModG2.__SYMMETRY_KEYS = []
+      for i, (x_flip, y_rot, x_rot, z_rot) in enumerate(SYMMETRY_IDS):
+        if (x_rot == 0 or x_rot == 180) \
+            and (y_rot == 0 or y_rot == 180) \
+            and (z_rot == 0 or z_rot == 180):
+          G1ModG2.__SYMMETRY_KEYS.append(i)
+    return G1ModG2.__SYMMETRY_KEYS
   def __init__(self, corner_orientations:list[int], edge_types:list[bool]):
     self.corner_orientations = corner_orientations
     self.edge_types = edge_types
   def do(self, move:Move) -> None:
-    # TODO
-    raise NotImplementedError()
+    global EDGE_PERMUTATIONS, CORNER_PERMUTATIONS, CORNER_ORIENTATION_DELTAS
+    apply_permutation(EDGE_PERMUTATIONS[move], self.edge_types) 
+    apply_permutation(
+      CORNER_PERMUTATIONS[move],
+      self.corner_orientations,
+      lambda o, b: (o+CORNER_ORIENTATION_DELTAS[move][b])%3
+    ) 
   def copy(self:TCubeLike) -> TCubeLike:
     return G1ModG2(self.corner_orientations.copy(), self.edge_types.copy())
   def iter_symmetries(self:TCubeLike) -> tuple[int, TCubeLike]:
-    # TODO
-    raise NotImplementedError()
+    global SYMMETRY_EDGE_PERMUTATIONS, SYMMETRY_CORNER_PERMUTATIONS, SYMMETRY_IDS
+    visited = set()
+    for i in G1ModG2._symmetry_keys():
+      flip = SYMMETRY_IDS[i][0] == -1
+      edge_permutation = SYMMETRY_EDGE_PERMUTATIONS[i]
+      corner_permutation = SYMMETRY_CORNER_PERMUTATIONS[i]
+      copy = self.copy()
+      apply_permutation(edge_permutation, copy.edge_types) 
+      apply_permutation(
+        corner_permutation,
+        copy.corner_orientations,
+        lambda o,_: (3-o)%3 if flip else o
+      ) 
+      if copy not in visited:
+        visited.add(copy)
+        yield i, copy
   def __hash__(self) -> int:
     return hash(tuple(self.corner_orientations)) ^ hash(tuple(self.edge_types))
   def __eq__(self, other) -> bool:
@@ -516,7 +552,7 @@ class G1ModG2(CubeLike):
   @staticmethod
   def decode(data:bytes) -> TCubeLike:
     return G1ModG2(
-      [ord(c)-ord('0') for c in data[:8]],
+      [c-ord('0') for c in data[:8]],
       [o==ord('1') for o in data[9:]]
     )
   @staticmethod
@@ -525,5 +561,14 @@ class G1ModG2(CubeLike):
       [0]*8,
       [False]*4+[True]*4+[False]*4
     )
+  @staticmethod
+  def valid_moves() -> list[Move]:
+    moves = []
+    for m in Move.__members__.values():
+      d = m%3
+      t = int(m/3)
+      if t <= 3 or d == 2:
+        moves.append(m)
+    return moves
 
 #### Cubes [End] ####

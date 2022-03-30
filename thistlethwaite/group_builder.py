@@ -45,10 +45,12 @@ class Group:
     return self._dict.keys()
 
 class GroupBuilder:
-  def __init__(self, root:cube.CubeLike, available_moves:list[cube.Move]):
+  def __init__(self, root:cube.CubeLike, available_moves:list[cube.Move] = None):
     self.group = Group()
     self.group[root] = AtomicDecomposition([])
     self.unexplored = set([root])
+    if available_moves is None:
+      available_moves = root.__class__.valid_moves()
     self.available_moves = available_moves
   def _build_step(self):
     if not self.unexplored:

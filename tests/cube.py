@@ -167,14 +167,15 @@ def test_corner_permutations_and_deltas():
     assert exp == act
 
 class CubeLikeTest:
-  def __init__(self, clazz, valid_moves:list[cube.Move]):
+  def __init__(self, clazz):
     self.clazz = clazz
-    self.valid_moves = valid_moves
+    self.valid_moves = clazz.valid_moves()
     self.gen = random.Random(hash(str(self.clazz)))
     self.fuzz_trials = 1000
+    self.move_depth = 30
   def rand_cube(self) -> cube.TCubeLike:
     rand = self.clazz.ident()
-    for i in range(30):
+    for i in range(self.move_depth):
       rand.do(self.gen.choice(self.valid_moves))
     return rand
   def fuzz_encoding(self):
@@ -186,7 +187,7 @@ class CubeLikeTest:
   def fuzz_moves(self):
     ident = self.clazz.ident()
     for trial in range(self.fuzz_trials):
-      moves = [self.gen.choice(self.valid_moves) for _ in range(30)]
+      moves = [self.gen.choice(self.valid_moves) for _ in range(self.move_depth)]
       cb = ident.copy()
       for move in moves:
         cb.do(move)
@@ -197,7 +198,7 @@ class CubeLikeTest:
   def fuzz_transforms(self):
     ident = self.clazz.ident()
     for trial in range(self.fuzz_trials):
-      moves = [self.gen.choice(self.valid_moves) for _ in range(30)]
+      moves = [self.gen.choice(self.valid_moves) for _ in range(self.move_depth)]
       constructed = ident.copy()
       for move in moves:
         constructed.do(move)
@@ -238,16 +239,10 @@ class CubeLikeTest:
 
 class G0ModG1Test(CubeLikeTest):
   def __init__(self):
-    super().__init__(
-      cube.G0ModG1,
-      list(cube.Move.__members__.values())
-    )
+    super().__init__(cube.G0ModG1)
 class G1ModG2Test(CubeLikeTest):
   def __init__(self):
-    super().__init__(
-      cube.G1ModG2,
-      list(cube.Move.__members__.values())
-    )
+    super().__init__(cube.G1ModG2)
 
 def main(cmdline_params):
   test_move_vec()
@@ -262,4 +257,4 @@ def main(cmdline_params):
   test_corner_orientation_vec()
   test_corner_permutations_and_deltas()
   G0ModG1Test().run_all()
-  #G1ModG2Test().run_all()
+  G1ModG2Test().run_all()
