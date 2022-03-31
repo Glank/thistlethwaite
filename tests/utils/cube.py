@@ -1,4 +1,4 @@
-import thistlethwaite.cube as cube
+import thistlethwaite.utils.cube as cube
 import numpy as np
 import random
 from textwrap import dedent

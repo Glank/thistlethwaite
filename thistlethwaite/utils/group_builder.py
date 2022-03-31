@@ -1,6 +1,7 @@
 from . import cube 
 import numpy as np
 import sqlite3
+from textwrap import dedent
 
 class AtomicDecomposition:
   def __init__(self, moves:list[cube.Move]):
@@ -44,46 +45,20 @@ class Group:
     """ Iterates over all elements of the group, mod symmetries. """
     raise NotImplementedError()
 
-class MemoryGroup(Group):
-  def __init__(self):
-    self._dict = dict[cube.CubeLike, AtomicDecomposition]()
-  def __contains__(self, cb:cube.CubeLike):
-    for _, sym in cb.iter_symmetries():
-      if sym in self._dict:
-        return True
-    return False
-  def __getitem__(self, cb:cube.CubeLike):
-    if cb in self._dict:
-      return self._dict[cb]
-    for sym_i, sym in cb.iter_symmetries():
-      if sym in self._dict:
-        transform = cube.SYMMETRY_TRANSFORMS[sym_i]
-        inv_transform = np.linalg.inv(transform)
-        # S_i(cb) = _dict[sym]
-        # cb = S_i^-1(_dict[sym])
-        return self._dict[sym].transformed(inv_transform)
-    raise KeyError(f'{cb} not in group')
-  def __setitem__(self, key, value):
-    assert isinstance(value, AtomicDecomposition)
-    self._dict[key] = value
-  def __len__(self):
-    return len(self._dict)
-  def keys(self):
-    return self._dict.keys()
-
 class SqliteGroup(Group):
   def __init__(self, filename, table, key_clazz=None):
     self.filename = filename
     self.table = table
     self.con = sqlite3.connect(self.filename)
     self.key_clazz = key_clazz 
-    self.con.execute(f'''
+    query = dedent(f'''
       CREATE TABLE IF NOT EXISTS
       {table} (
         key BLOB PRIMARY KEY,
         moves BLOB
       )
     ''')
+    self.con.execute(query)
   def __contains__(self, cb:cube.CubeLike) -> bool:
     keys = []
     for _, sym in cb.iter_symmetries():
@@ -132,14 +107,43 @@ class SqliteGroup(Group):
     for row in cur.execute(f'SELECT key FROM {self.table}'):
       yield self.key_clazz.decode(row[0])
 
+class MemoryGroup(Group):
+  def __init__(self):
+    self._dict = dict[cube.CubeLike, AtomicDecomposition]()
+  def __contains__(self, cb:cube.CubeLike):
+    for _, sym in cb.iter_symmetries():
+      if sym in self._dict:
+        return True
+    return False
+  def __getitem__(self, cb:cube.CubeLike):
+    if cb in self._dict:
+      return self._dict[cb]
+    for sym_i, sym in cb.iter_symmetries():
+      if sym in self._dict:
+        transform = cube.SYMMETRY_TRANSFORMS[sym_i]
+        inv_transform = np.linalg.inv(transform)
+        # S_i(cb) = _dict[sym]
+        # cb = S_i^-1(_dict[sym])
+        return self._dict[sym].transformed(inv_transform)
+    raise KeyError(f'{cb} not in group')
+  def __setitem__(self, key, value):
+    assert isinstance(value, AtomicDecomposition)
+    self._dict[key] = value
+  def __len__(self):
+    return len(self._dict)
+  def keys(self):
+    return self._dict.keys()
+  def save_to(self, sqlite_group:SqliteGroup) -> None:
+    for key in self.keys():
+      sqlite_group[key] = self[key]
+
 class GroupBuilder:
-  def __init__(self, root:cube.CubeLike, available_moves:list[cube.Move] = None):
-    self.group = MemoryGroup()
+  def __init__(self, root:cube.CubeLike, group:Group = None):
+    if group is None:
+      self.group = MemoryGroup()
     self.group[root] = AtomicDecomposition([])
     self.unexplored = set([root])
-    if available_moves is None:
-      available_moves = root.__class__.valid_moves()
-    self.available_moves = available_moves
+    self.available_moves = root.__class__.valid_moves()
   def _build_step(self):
     if not self.unexplored:
       raise RuntimeError('Already fully built.')

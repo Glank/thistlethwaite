@@ -1,5 +1,5 @@
-import thistlethwaite.cube as cube
-import thistlethwaite.group_builder as gb
+import thistlethwaite.utils.cube as cube
+import thistlethwaite.utils.group_builder as gb
 
 def test_build_g0modg1():
   ident = cube.G0ModG1([False]*12)
@@ -47,12 +47,6 @@ def test_build_g0modg1():
     #print(f'{move_s} {undone}')
   assert undone == ident
 
-def test_build_g1modg2():
-  builder = gb.GroupBuilder(cube.G1ModG2.ident())
-  print("Starting build...")
-  builder.build()
-  print(len(builder))
-
 def test_decode_atomic_decomposition():
   atomic = gb.AtomicDecomposition([cube.Move.UP, cube.Move.DOWN_2])
   encoded = atomic.encode()
@@ -82,6 +76,12 @@ def test_sqlite_group():
   assert len(group) == 2
   for key in group.keys():
     assert key in [ident, front]
+
+def test_build_g1modg2():
+  builder = gb.GroupBuilder(cube.G1ModG2.ident())
+  print("Starting build...")
+  builder.build()
+  print(len(builder))
 
 def main(cmdline_params):
   test_sqlite_group()
