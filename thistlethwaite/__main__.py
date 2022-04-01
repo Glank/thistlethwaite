@@ -32,12 +32,17 @@ def parse_args():
 def main():
   args = parse_args()
   if args.build:
-    for clazz in [cube.G0ModG1, cube.G1ModG2]:
+    to_build = [
+      (cube.G0ModG1, 186),
+      (cube.G1ModG2, 136566),
+    ]
+    for clazz, expected_size in to_build:
       table = clazz.__name__.lower()
       print(f'Building {table}...')
       sqlite_group = gb.SqliteGroup(args.database[0], table)
       builder = gb.GroupBuilder(clazz.ident())
-      builder.build()
+      builder.build(expected_size)
+      print('Saving to db...')
       builder.group.save_to(sqlite_group)
     print('All tables successfully built.')
   else:

@@ -1,5 +1,6 @@
 import thistlethwaite.utils.cube as cube
 import thistlethwaite.utils.group_builder as gb
+import random
 
 def test_build_g0modg1():
   ident = cube.G0ModG1([False]*12)
@@ -77,15 +78,32 @@ def test_sqlite_group():
   for key in group.keys():
     assert key in [ident, front]
 
-def test_build_g1modg2():
-  builder = gb.GroupBuilder(cube.G1ModG2.ident())
-  print("Starting build...")
-  builder.build()
-  print(len(builder))
+class PrebuiltGroupTest:
+  def __init__(self, clazz):
+    self.clazz = clazz
+    self.group = gb.SqliteGroup('lookuptables.db', clazz.__name__.lower(), key_clazz=clazz)
+    self.trials = 1000
+    self.move_depth = 30
+    self.gen = random.Random(hash(str(self.clazz)))
+  def fuzz_decomposition(self):
+    for t in range(self.trials):
+      cb = self.clazz.ident()
+      moves = []
+      for i in range(self.move_depth):
+        move = self.gen.choice(self.clazz.valid_moves())
+        moves.append(move)
+        cb.do(move)
+      decomp = self.group[cb]
+      reconstructed = self.clazz.ident()
+      for move in decomp.moves:
+        reconstructed.do(move)
+      assert reconstructed == cb
+  def run_all(self):
+    self.fuzz_decomposition()
 
 def main(cmdline_params):
   test_sqlite_group()
   test_decode_atomic_decomposition()
   test_build_g0modg1()
-  #test_build_g1modg2()
-  pass
+  PrebuiltGroupTest(cube.G0ModG1).run_all()
+  PrebuiltGroupTest(cube.G1ModG2).run_all()

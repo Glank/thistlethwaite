@@ -2,6 +2,7 @@ from . import cube
 import numpy as np
 import sqlite3
 from textwrap import dedent
+from tqdm import tqdm
 
 class AtomicDecomposition:
   def __init__(self, moves:list[cube.Move]):
@@ -98,6 +99,15 @@ class SqliteGroup(Group):
       (key.encode(), value.encode())
     )
     self.con.commit()
+  def add_all(self, cube_value_iter) -> None:
+    def fmted_iter(cube_value_iter):
+      for cb, decomp in cube_value_iter:
+        yield cb.encode(), decomp.encode()
+    self.con.executemany(
+      f'INSERT OR REPLACE INTO {self.table} VALUES (?,?)',
+      fmted_iter(cube_value_iter)
+    )
+    self.con.commit()
   def __len__(self) -> int:
     cur = self.con.execute(f'SELECT COUNT(*) FROM {self.table}')
     count = cur.fetchall()[0][0]
@@ -134,8 +144,7 @@ class MemoryGroup(Group):
   def keys(self):
     return self._dict.keys()
   def save_to(self, sqlite_group:SqliteGroup) -> None:
-    for key in self.keys():
-      sqlite_group[key] = self[key]
+    sqlite_group.add_all(tqdm(self._dict.items(), total=len(self._dict)))
 
 class GroupBuilder:
   def __init__(self, root:cube.CubeLike, group:Group = None):
@@ -157,9 +166,19 @@ class GroupBuilder:
         self.group[nxt] = new_node
         self.unexplored.add(nxt)
     return bool(self.unexplored)
-  def build(self):
+  def build(self, expected_size=None):
     if self.unexplored:
-      while self._build_step():
-        pass
+      if expected_size is not None:
+        with tqdm(total=expected_size) as pbar:
+          max_size = 0
+          while self._build_step():
+            new_size = len(self.group)
+            delta = new_size-max_size
+            if delta>0:
+              pbar.update(delta)
+              max_size = new_size
+      else:
+        while self._build_step():
+          pass
   def __len__(self):
     return len(self.group)
