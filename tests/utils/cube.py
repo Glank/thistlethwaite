@@ -2,6 +2,7 @@ import thistlethwaite.utils.cube as cube
 import numpy as np
 import random
 from textwrap import dedent
+import hashlib
 
 def test_move_vec():
   if any(cube.move_vec(cube.Move.UP) != np.array([0,1,0])):
@@ -170,7 +171,8 @@ class CubeLikeTest:
   def __init__(self, clazz):
     self.clazz = clazz
     self.valid_moves = clazz.valid_moves()
-    self.gen = random.Random(hash(str(self.clazz)))
+    seed = hashlib.md5(bytes(str(self.clazz), 'utf-8')).digest()
+    self.gen = random.Random(seed)
     self.fuzz_trials = 1000
     self.move_depth = 30
   def rand_cube(self) -> cube.TCubeLike:
@@ -212,7 +214,7 @@ class CubeLikeTest:
       if constructed_transform != symmetry:
         x_flip, y_rot, x_rot, z_rot = cube.SYMMETRY_IDS[sym_id]
         print(dedent(f"""
-          Fuzz transforms {trial} failed.
+          Fuzz transform trial {trial} failed.
           x_flip:{x_flip}, y_rot:{y_rot}, x_rot:{x_rot}, z_rot:{z_rot}
           moves: {moves}
           transformed_moves: {transformed_moves}
@@ -243,6 +245,9 @@ class G0ModG1Test(CubeLikeTest):
 class G1ModG2Test(CubeLikeTest):
   def __init__(self):
     super().__init__(cube.G1ModG2)
+class G2ModG3Test(CubeLikeTest):
+  def __init__(self):
+    super().__init__(cube.G2ModG3)
 
 def main(cmdline_params):
   test_move_vec()
@@ -258,3 +263,4 @@ def main(cmdline_params):
   test_corner_permutations_and_deltas()
   G0ModG1Test().run_all()
   G1ModG2Test().run_all()
+  G2ModG3Test().run_all()

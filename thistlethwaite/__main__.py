@@ -4,7 +4,7 @@ from textwrap import dedent
 import utils.cube as cube
 import utils.group_builder as gb
 
-def parse_args():
+def get_args_parser():
   parser = argparse.ArgumentParser(
     description="Solves Rubik's Cubes using Thistlethwaite's algorithm."
   )
@@ -17,9 +17,12 @@ def parse_args():
   )
   actions = parser.add_mutually_exclusive_group()
   actions.add_argument(
-    '-b', '--build', action='store_true',
+    '-b', '--build',
+    metavar='TABLE', nargs='?', default='notset',
     help=dedent('''
       Build the thistlethwaite lookup tables used to generate solutions to the given database.
+      Optionally, supply the TABLE to built: g0modg1, g1modg2, or g2modg3.
+      If no table is specified, all tables will be built.
     ''')
   )
   actions.add_argument(
@@ -27,16 +30,25 @@ def parse_args():
     metavar='CUBESPEC', nargs=1, required=False,
     help='Find the moves to solve the given cube. TODO: describe CUBESPEC'
   )
-  return parser.parse_args()
+  return parser
 
 def main():
-  args = parse_args()
-  if args.build:
-    to_build = [
-      (cube.G0ModG1, 186),
-      (cube.G1ModG2, 136566),
-    ]
-    for clazz, expected_size in to_build:
+  args_parser = get_args_parser()
+  args = args_parser.parse_args()
+  if args.build != 'notset':
+    build_specs = {
+      'g0modg1': (cube.G0ModG1, 186),
+      'g1modg2': (cube.G1ModG2, 136566),
+      'g2modg3': (cube.G2ModG3, 706),
+    }
+    to_build = list(build_specs.keys())
+    if args.build is not None:
+      if args.build in build_specs:
+        to_build = [args.build]
+      else:
+        args_parser.error(f'Invalid table: {args.build}')
+    for key in to_build:
+      clazz, expected_size = build_specs[key]
       table = clazz.__name__.lower()
       print(f'Building {table}...')
       sqlite_group = gb.SqliteGroup(args.database[0], table)

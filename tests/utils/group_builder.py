@@ -1,5 +1,6 @@
 import thistlethwaite.utils.cube as cube
 import thistlethwaite.utils.group_builder as gb
+import hashlib
 import random
 
 def test_build_g0modg1():
@@ -84,7 +85,8 @@ class PrebuiltGroupTest:
     self.group = gb.SqliteGroup('lookuptables.db', clazz.__name__.lower(), key_clazz=clazz)
     self.trials = 1000
     self.move_depth = 30
-    self.gen = random.Random(hash(str(self.clazz)))
+    seed = hashlib.md5(bytes(str(self.clazz), 'utf-8')).digest()
+    self.gen = random.Random(seed)
   def fuzz_decomposition(self):
     for t in range(self.trials):
       cb = self.clazz.ident()
@@ -107,3 +109,4 @@ def main(cmdline_params):
   test_build_g0modg1()
   PrebuiltGroupTest(cube.G0ModG1).run_all()
   PrebuiltGroupTest(cube.G1ModG2).run_all()
+  PrebuiltGroupTest(cube.G2ModG3).run_all()
