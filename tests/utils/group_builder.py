@@ -80,11 +80,12 @@ def test_sqlite_group():
     assert key in [ident, front]
 
 class PrebuiltGroupTest:
-  def __init__(self, clazz):
+  def __init__(self, database, clazz, trials=1000, move_depth=30):
     self.clazz = clazz
-    self.group = gb.SqliteGroup('lookuptables.db', clazz.__name__.lower(), key_clazz=clazz)
-    self.trials = 1000
-    self.move_depth = 30
+    table = self.clazz.__name__.lower()
+    self.group = gb.SqliteGroup(database, table, key_clazz=clazz)
+    self.trials = trials
+    self.move_depth = move_depth
     seed = hashlib.md5(bytes(str(self.clazz), 'utf-8')).digest()
     self.gen = random.Random(seed)
   def fuzz_decomposition(self):
@@ -103,10 +104,11 @@ class PrebuiltGroupTest:
   def run_all(self):
     self.fuzz_decomposition()
 
-def main(cmdline_params):
+def main(args):
   test_sqlite_group()
   test_decode_atomic_decomposition()
   test_build_g0modg1()
-  PrebuiltGroupTest(cube.G0ModG1).run_all()
-  PrebuiltGroupTest(cube.G1ModG2).run_all()
-  PrebuiltGroupTest(cube.G2ModG3).run_all()
+  PrebuiltGroupTest(args['cube_database'], cube.G0ModG1).run_all()
+  PrebuiltGroupTest(args['cube_database'], cube.G1ModG2).run_all()
+  PrebuiltGroupTest(args['cube_database'], cube.G2ModG3).run_all()
+  PrebuiltGroupTest(args['cube_database'], cube.G3ModG4).run_all()

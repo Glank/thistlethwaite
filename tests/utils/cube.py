@@ -168,13 +168,14 @@ def test_corner_permutations_and_deltas():
     assert exp == act
 
 class CubeLikeTest:
-  def __init__(self, clazz):
+  def __init__(self, clazz, coset_translation_method = None):
     self.clazz = clazz
     self.valid_moves = clazz.valid_moves()
     seed = hashlib.md5(bytes(str(self.clazz), 'utf-8')).digest()
     self.gen = random.Random(seed)
     self.fuzz_trials = 1000
     self.move_depth = 30
+    self.coset_translation_method = coset_translation_method
   def rand_cube(self) -> cube.TCubeLike:
     rand = self.clazz.ident()
     for i in range(self.move_depth):
@@ -233,23 +234,45 @@ class CubeLikeTest:
           matched = True
           break
       assert matched
+  def fuzz_coset_translation_method(self):
+    if self.coset_translation_method is None:
+      return
+    for trial in range(self.fuzz_trials):
+      full_cube = cube.G0.ident()
+      coset_cube = self.clazz.ident() 
+      for i in range(self.move_depth):
+        move = self.gen.choice(self.valid_moves)
+        full_cube.do(move)
+        coset_cube.do(move)
+      translated = self.coset_translation_method(full_cube)
+      if translated != coset_cube:
+        print(f'translated: {translated}')
+        print(f'coset: {coset_cube}')
+      assert translated == coset_cube
   def run_all(self):
     self.fuzz_moves()
     self.fuzz_encoding()
     self.fuzz_transforms()
     self.fuzz_symmetries_group()
+    self.fuzz_coset_translation_method()
 
 class G0ModG1Test(CubeLikeTest):
   def __init__(self):
-    super().__init__(cube.G0ModG1)
+    super().__init__(cube.G0ModG1, cube.G0.get_g0modg1)
 class G1ModG2Test(CubeLikeTest):
   def __init__(self):
-    super().__init__(cube.G1ModG2)
+    super().__init__(cube.G1ModG2, cube.G0.get_g1modg2)
 class G2ModG3Test(CubeLikeTest):
   def __init__(self):
-    super().__init__(cube.G2ModG3)
+    super().__init__(cube.G2ModG3, cube.G0.get_g2modg3)
+class G3ModG4Test(CubeLikeTest):
+  def __init__(self):
+    super().__init__(cube.G3ModG4, cube.G0.get_g3modg4)
+class G0Test(CubeLikeTest):
+  def __init__(self):
+    super().__init__(cube.G0)
 
-def main(cmdline_params):
+def main(args):
   test_move_vec()
   test_move_rot()
   test_edge_vec_edge()
@@ -264,3 +287,5 @@ def main(cmdline_params):
   G0ModG1Test().run_all()
   G1ModG2Test().run_all()
   G2ModG3Test().run_all()
+  G3ModG4Test().run_all()
+  G0Test().run_all()

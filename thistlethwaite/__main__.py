@@ -40,6 +40,7 @@ def main():
       'g0modg1': (cube.G0ModG1, 186),
       'g1modg2': (cube.G1ModG2, 136566),
       'g2modg3': (cube.G2ModG3, 706),
+      'g3modg4': (cube.G3ModG4, 663552),
     }
     to_build = list(build_specs.keys())
     if args.build is not None:
@@ -47,9 +48,8 @@ def main():
         to_build = [args.build]
       else:
         args_parser.error(f'Invalid table: {args.build}')
-    for key in to_build:
-      clazz, expected_size = build_specs[key]
-      table = clazz.__name__.lower()
+    for table in to_build:
+      clazz, expected_size = build_specs[table]
       print(f'Building {table}...')
       sqlite_group = gb.SqliteGroup(args.database[0], table)
       builder = gb.GroupBuilder(clazz.ident())
