@@ -82,7 +82,7 @@ class SqliteGroup(Group):
     cur = self.con.execute(query, tuple(keys))
     rows = cur.fetchall()
     if not rows:
-      raise KeyError(f'{cb} not in group')
+      raise KeyError(f'{cb} not in group {self.table}')
     key, atomic_encoded = rows[0]
     sym_idx = sym_idxs[keys.index(key)]
     atomic = AtomicDecomposition.decode(atomic_encoded) 

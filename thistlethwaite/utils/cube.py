@@ -463,15 +463,16 @@ class G0ModG1(CubeLike):
   def copy(self:TCubeLike) -> TCubeLike:
     return G0ModG1(self.edge_orientations.copy())
   def iter_symmetries(self:TCubeLike) -> tuple[int, TCubeLike]:
-    global SYMMETRY_EDGE_PERMUTATIONS
-    visited = set()
-    for i in G0ModG1._symmetry_keys():
-      permutation = SYMMETRY_EDGE_PERMUTATIONS[i]
-      copy = self.copy()
-      copy._apply_edge_permutation(permutation, False)
-      if copy not in visited:
-        visited.add(copy)
-        yield i, copy
+    yield 0, self.copy()
+    # global SYMMETRY_EDGE_PERMUTATIONS
+    # visited = set()
+    # for i in G0ModG1._symmetry_keys():
+    #   permutation = SYMMETRY_EDGE_PERMUTATIONS[i]
+    #   copy = self.copy()
+    #   copy._apply_edge_permutation(permutation, False)
+    #   if copy not in visited:
+    #     visited.add(copy)
+    #     yield i, copy
   def __hash__(self) -> int:
     return hash(tuple(self.edge_orientations))
   def __eq__(self, other) -> bool:
@@ -521,22 +522,23 @@ class G1ModG2(CubeLike):
   def copy(self:TCubeLike) -> TCubeLike:
     return G1ModG2(self.corner_orientations.copy(), self.edge_types.copy())
   def iter_symmetries(self:TCubeLike) -> tuple[int, TCubeLike]:
-    global SYMMETRY_EDGE_PERMUTATIONS, SYMMETRY_CORNER_PERMUTATIONS, SYMMETRY_IDS
-    visited = set()
-    for i in G1ModG2._symmetry_keys():
-      flip = SYMMETRY_IDS[i][0] == -1
-      edge_permutation = SYMMETRY_EDGE_PERMUTATIONS[i]
-      corner_permutation = SYMMETRY_CORNER_PERMUTATIONS[i]
-      copy = self.copy()
-      apply_permutation(edge_permutation, copy.edge_types) 
-      apply_permutation(
-        corner_permutation,
-        copy.corner_orientations,
-        lambda o,_: (3-o)%3 if flip else o
-      ) 
-      if copy not in visited:
-        visited.add(copy)
-        yield i, copy
+    yield 0, self.copy()
+    # global SYMMETRY_EDGE_PERMUTATIONS, SYMMETRY_CORNER_PERMUTATIONS, SYMMETRY_IDS
+    # visited = set()
+    # for i in G1ModG2._symmetry_keys():
+    #   flip = SYMMETRY_IDS[i][0] == -1
+    #   edge_permutation = SYMMETRY_EDGE_PERMUTATIONS[i]
+    #   corner_permutation = SYMMETRY_CORNER_PERMUTATIONS[i]
+    #   copy = self.copy()
+    #   apply_permutation(edge_permutation, copy.edge_types) 
+    #   apply_permutation(
+    #     corner_permutation,
+    #     copy.corner_orientations,
+    #     lambda o,_: (3-o)%3 if flip else o
+    #   ) 
+    #   if copy not in visited:
+    #     visited.add(copy)
+    #     yield i, copy
   def __hash__(self) -> int:
     return hash(tuple(self.corner_orientations)) ^ hash(tuple(self.edge_types))
   def __eq__(self, other) -> bool:
@@ -587,57 +589,67 @@ class G2ModG3(CubeLike):
             and (z_rot == 0 or z_rot == 180):
           G2ModG3.__SYMMETRY_KEYS.append(i)
     return G2ModG3.__SYMMETRY_KEYS
-  def __init__(self, edge_types:list[int], corner_types:list[int]):
+  def __init__(self, edge_types:list[int], corner_types:list[int], parity:bool):
     assert len(edge_types) == 12
     assert len(corner_types) == 8
     self.edge_types = edge_types
     self.corner_types = corner_types
+    self.parity = parity
   def do(self, move:Move) -> None:
     global EDGE_PERMUTATIONS, CORNER_PERMUTATIONS
     apply_permutation(EDGE_PERMUTATIONS[move], self.edge_types) 
     apply_permutation(CORNER_PERMUTATIONS[move], self.corner_types) 
+    if move in [Move.UP, Move.UP_INV, Move.DOWN, Move.DOWN_INV]:
+      self.parity = not self.parity
   def copy(self:TCubeLike) -> TCubeLike:
-    return G2ModG3(self.edge_types.copy(), self.corner_types.copy())
+    return G2ModG3(self.edge_types.copy(), self.corner_types.copy(), self.parity)
   def iter_symmetries(self:TCubeLike) -> tuple[int, TCubeLike]:
-    global SYMMETRY_EDGE_PERMUTATIONS, SYMMETRY_CORNER_PERMUTATIONS, SYMMETRY_IDS
-    visited = set()
-    for i in G2ModG3._symmetry_keys():
-      flip = SYMMETRY_IDS[i][0] == -1
-      edge_permutation = SYMMETRY_EDGE_PERMUTATIONS[i]
-      corner_permutation = SYMMETRY_CORNER_PERMUTATIONS[i]
-      copy = self.copy()
-      apply_permutation(edge_permutation, copy.edge_types) 
-      apply_permutation(
-        corner_permutation,
-        copy.corner_types,
-        lambda c,_: (1-c) if flip else c
-      ) 
-      if copy not in visited:
-        visited.add(copy)
-        yield i, copy
+    yield 0, self.copy()
+    # global SYMMETRY_EDGE_PERMUTATIONS, SYMMETRY_CORNER_PERMUTATIONS, SYMMETRY_IDS
+    # visited = set()
+    # for i in G2ModG3._symmetry_keys():
+    #   flip = SYMMETRY_IDS[i][0] == -1
+    #   edge_permutation = SYMMETRY_EDGE_PERMUTATIONS[i]
+    #   corner_permutation = SYMMETRY_CORNER_PERMUTATIONS[i]
+    #   copy = self.copy()
+    #   apply_permutation(edge_permutation, copy.edge_types) 
+    #   apply_permutation(
+    #     corner_permutation,
+    #     copy.corner_types,
+    #     lambda c,_: (1-c) if flip else c
+    #   ) 
+    #   if copy not in visited:
+    #     visited.add(copy)
+    #     yield i, copy
   def __hash__(self) -> int:
-    return hash(tuple(self.edge_types)) ^ hash(tuple(self.corner_types))
+    return hash(tuple(self.edge_types)) ^ hash(tuple(self.corner_types)) ^ hash(self.parity)
   def __eq__(self, other) -> bool:
     return all(self.edge_types[i] == other.edge_types[i] \
       for i in range(len(self.edge_types))) and \
       all(self.corner_types[i] == other.corner_types[i] \
-      for i in range(len(self.corner_types)))
+      for i in range(len(self.corner_types))) and \
+      self.parity == other.parity
   def __str__(self) -> str:
     return ''.join(str(e) for e in self.edge_types) \
-      + ',' + ''.join(str(c) for c in self.corner_types)
+      + ',' + ''.join(str(c) for c in self.corner_types) \
+      + ',' + ('1' if self.parity else '0')
   def encode(self) -> bytes:
-    return bytes(str(self), 'utf-8')
+    ret = bytes(str(self), 'utf-8')
+    assert len(ret) == 23
+    return ret
   @staticmethod
   def decode(data:bytes) -> TCubeLike:
     return G2ModG3(
       [e-ord('0') for e in data[:12]],
-      [c-ord('0') for c in data[13:]]
+      [c-ord('0') for c in data[13:21]],
+      data[22] == ord('1'),
     )
   @staticmethod
   def ident() -> TCubeLike:
     return G2ModG3(
       [0,1]*2+[2]*4+[0,1]*2,
       [0,1]*2+[1,0]*2,
+      False,
     )
   @staticmethod
   def valid_moves() -> list[Move]:
@@ -800,9 +812,13 @@ class G0(CubeLike):
       if c in [0, 2, 5, 7]:
         return 0
       return 1
+    edge_transitions = dict((i,self.edge_types[i]) for i in range(12))
+    edge_cycles = transitions_to_cycle_notation(edge_transitions) #list[list[int]]
+    parity = sum(len(cycle)-1 for cycle in edge_cycles)%2 == 1
     return G2ModG3(
       [edge_tran(e) for e in self.edge_types],
       [corn_tran(c) for c in self.corner_types],
+      parity,
     )
   def get_g3modg4(self):
     """ Assuming this cube is in G3, returns the G4 coset. """

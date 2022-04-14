@@ -19,12 +19,14 @@ class Solver:
       clazz = coset_cube.__class__
       table = clazz.__name__.lower()
       group = gb.SqliteGroup(self.database, table, key_clazz=clazz)
+      print(coset_cube)
       decomp = group[coset_cube]
       inverse = decomp.inverse()
       for move in inverse.moves:
-        print(move)
         moves.append(move)
+        print(move)
         cb.do(move)
+      print(cb)
       for j in range(i+1):
         coset = coset_translators[j](cb)
         assert coset == coset.__class__.ident()

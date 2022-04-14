@@ -176,10 +176,13 @@ class CubeLikeTest:
     self.fuzz_trials = 1000
     self.move_depth = 30
     self.coset_translation_method = coset_translation_method
-  def rand_cube(self) -> cube.TCubeLike:
+  def rand_cube(self, debug=False) -> cube.TCubeLike:
     rand = self.clazz.ident()
     for i in range(self.move_depth):
-      rand.do(self.gen.choice(self.valid_moves))
+      move = self.gen.choice(self.valid_moves)
+      rand.do(move)
+      if debug:
+        print(f'{move}: {rand}')
     return rand
   def fuzz_encoding(self):
     for trial in range(self.fuzz_trials):
@@ -284,8 +287,8 @@ def main(args):
   test_corner_vec()
   test_corner_orientation_vec()
   test_corner_permutations_and_deltas()
-  G0ModG1Test().run_all()
-  G1ModG2Test().run_all()
+  #G0ModG1Test().run_all()
+  #G1ModG2Test().run_all()
   G2ModG3Test().run_all()
-  G3ModG4Test().run_all()
-  G0Test().run_all()
+  #G3ModG4Test().run_all()
+  #G0Test().run_all()
