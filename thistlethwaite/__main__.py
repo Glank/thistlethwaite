@@ -37,8 +37,8 @@ def main():
   args = args_parser.parse_args()
   if args.build != 'notset':
     build_specs = {
-      'g0modg1': (cube.G0ModG1, 0),
-      'g1modg2': (cube.G1ModG2, 0),
+      'g0modg1': (cube.G0ModG1, 2048),
+      'g1modg2': (cube.G1ModG2, 1082565),
       'g2modg3': (cube.G2ModG3, 9800),
       'g3modg4': (cube.G3ModG4, 663552),
     }

@@ -275,7 +275,38 @@ class G0Test(CubeLikeTest):
   def __init__(self):
     super().__init__(cube.G0)
 
+def test_moves():
+  cases = [
+    (cube.Move.UP,        '000000000000,00000000,3012456789ab,30124567'),
+    (cube.Move.UP_INV,    '000000000000,00000000,1230456789ab,12304567'),
+    (cube.Move.UP_2,      '000000000000,00000000,2301456789ab,23014567'),
+    (cube.Move.DOWN,      '000000000000,00000000,012345679ab8,01235674'),
+    (cube.Move.DOWN_INV,  '000000000000,00000000,01234567b89a,01237456'),
+    (cube.Move.DOWN_2,    '000000000000,00000000,01234567ab89,01236745'),
+    (cube.Move.LEFT,      '000000000000,02100120,016342a7895b,02634157'),
+    (cube.Move.LEFT_INV,  '000000000000,02100120,01534a27896b,05134627'),
+    (cube.Move.LEFT_2,    '000000000000,00000000,01a34657892b,06534217'),
+    (cube.Move.RIGHT,     '000000000000,10022001,4123856079ab,41207563'),
+    (cube.Move.RIGHT_INV, '000000000000,10022001,7123056849ab,31270564'),
+    (cube.Move.RIGHT_2,   '000000000000,00000000,8123756409ab,71243560'),
+    (cube.Move.FRONT,     '010011000100,21001200,0523196784ab,15230467'),
+    (cube.Move.FRONT_INV, '010011000100,21001200,0423916785ab,40235167'),
+    (cube.Move.FRONT_2,   '000000000000,00000000,0923546781ab,54231067'),
+    (cube.Move.BACK,      '000100110001,00210012,0127453b89a6,01374526'),
+    (cube.Move.BACK_INV,  '000100110001,00210012,012645b389a7,01624573'),
+    (cube.Move.BACK_2,    '000000000000,00000000,012b457689a3,01764532'),
+  ]
+  for move, encoding in cases:
+    exp = cube.G0.decode(bytes(encoding, 'utf-8'))
+    act = cube.G0.ident()
+    act.do(move)
+    if act != exp:
+      ms = str(move)
+      print(f'For move {ms},\nExpected: {exp}\nGot: {act}')
+      assert False
+
 def main(args):
+  test_moves()
   test_move_vec()
   test_move_rot()
   test_edge_vec_edge()
@@ -287,8 +318,8 @@ def main(args):
   test_corner_vec()
   test_corner_orientation_vec()
   test_corner_permutations_and_deltas()
-  #G0ModG1Test().run_all()
-  #G1ModG2Test().run_all()
+  G0ModG1Test().run_all()
+  G1ModG2Test().run_all()
   G2ModG3Test().run_all()
-  #G3ModG4Test().run_all()
-  #G0Test().run_all()
+  G3ModG4Test().run_all()
+  G0Test().run_all()

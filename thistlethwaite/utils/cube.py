@@ -328,8 +328,8 @@ def move_corners(move:Move) -> list[Corner]:
   return [
     [Corner.UFR, Corner.ULF, Corner.UBL, Corner.URB], #U
     [Corner.DRF, Corner.DFL, Corner.DLB, Corner.DBR], #D
-    [Corner.UFR, Corner.URB, Corner.DRF, Corner.DBR], #R
     [Corner.ULF, Corner.UBL, Corner.DFL, Corner.DLB], #L
+    [Corner.UFR, Corner.URB, Corner.DRF, Corner.DBR], #R
     [Corner.UFR, Corner.ULF, Corner.DRF, Corner.DFL], #F
     [Corner.UBL, Corner.URB, Corner.DLB, Corner.DBR], #B
   ][d]

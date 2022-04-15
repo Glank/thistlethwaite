@@ -34,7 +34,7 @@ def test_g0_scramble():
   ]
   for move in scramble:
     cb.do(move)
-  print(cb)
+  #print(cb)
   assert cb == cube.G0.decode(
     bytes('000000000000,00000000,810b5467a329,47561320', 'utf-8'))
 
